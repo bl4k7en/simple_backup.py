@@ -9,7 +9,7 @@ import threading
 
 class SimpleBackup(plugins.Plugin):
     __author__ = 'bl4k7en'
-    __version__ = '1.0'
+    __version__ = '1.1'
     __license__ = 'GPL3'
     __description__ = 'Simple and reliable backup plugin for Pwnagotchi'
 
@@ -57,10 +57,14 @@ class SimpleBackup(plugins.Plugin):
         logging.info(f"[BACKUP] Location: {self.options['backup_path']}")
         logging.info(f"[BACKUP] Max backups to keep: {self.options['max_backups']}")
         
+        # Set initial time BEFORE starting threads
+        self.last_backup = time.time()
+        
         # Trigger backup on boot if enabled
         if self.options['backup_on_boot']:
-            logging.info("[BACKUP] Creating boot backup...")
-            threading.Thread(target=self._create_backup, daemon=True).start()
+            logging.info("[BACKUP] Scheduling boot backup...")
+            # Delay boot backup by 30 seconds to let system stabilize
+            threading.Timer(30.0, self._create_backup).start()
         
         # Start background timer for regular backups
         self._start_backup_timer()
@@ -191,7 +195,7 @@ class SimpleBackup(plugins.Plugin):
     def _should_backup(self):
         """Check if backup is due based on interval"""
         if self.last_backup == 0:
-            return True
+            return False  # Don't backup immediately on startup
         
         interval_seconds = self.options['interval_hours'] * 3600
         elapsed = time.time() - self.last_backup
@@ -202,6 +206,9 @@ class SimpleBackup(plugins.Plugin):
         """Start background timer thread for regular backups"""
         def backup_loop():
             logging.info("[BACKUP] Background timer started")
+            # Wait 60 seconds before first check to let system stabilize
+            time.sleep(60)
+            
             while not self.stop_timer:
                 try:
                     if self._should_backup():
